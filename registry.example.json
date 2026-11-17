@@ -1,0 +1,21 @@
+{
+  "witness": {
+    "name": "witness.euca.in",
+    "operator": "一般社団法人エンドユーザーコンピューティング協会"
+  },
+  "quorum": 1,
+  "operators": [
+    {
+      "name": "合同会社Burug お問い合わせの取り扱い記録",
+      "origin": "cucon.burug.co/dlm",
+      "checkpoint_key": "cucon.burug.co/dlm+00000000+AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "url": "https://cucon.burug.co/log",
+      "witnesses": [
+        {
+          "name": "内部監査室",
+          "key": "cucon.burug.co/internal-audit+00000000+BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      ]
+    }
+  ]
+}

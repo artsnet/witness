@@ -1,0 +1,8 @@
+{
+  "witness": {
+    "name": "witness.euca.in",
+    "operator": "一般社団法人エンドユーザーコンピューティング協会"
+  },
+  "quorum": 1,
+  "operators": []
+}
