@@ -1,11 +1,11 @@
-// The Worker: the witness's three endpoints go to one Durable Object, which
-// holds its state and takes requests one at a time; everything else is the
+// The Worker: the witness's endpoints go to one Durable Object, which holds
+// its state and takes requests one at a time; everything else is the
 // verification site, served as static files.
 import { DurableObject } from 'cloudflare:workers';
 import registry from '../public/registry.json';
 import { Witness } from './witness.js';
 
-const WITNESS_PATHS = ['/add-checkpoint', '/witness.vkey', '/status.json'];
+const WITNESS_PATHS = ['/add-checkpoint', '/witness.vkey', '/status.json', '/results', '/results.json'];
 
 export class WitnessState extends DurableObject {
   constructor(ctx, env) {

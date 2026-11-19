@@ -7,10 +7,10 @@
     "directory": "./public",
     "binding": "ASSETS",
     // The witness's endpoints go to the Worker; the rest is the verification site.
-    "run_worker_first": ["/add-checkpoint", "/witness.vkey", "/status.json"]
+    "run_worker_first": ["/add-checkpoint", "/witness.vkey", "/status.json", "/results", "/results.json"]
   },
-  // The witness's state: the last checkpoint cosigned for each log, and its key
-  // when no WITNESS_KEY secret is set.
+  // The witness's state: per log, the last checkpoint cosigned and the auditors'
+  // statements; and its key when no WITNESS_KEY secret is set.
   "durable_objects": {
     "bindings": [{ "name": "WITNESS", "class_name": "WitnessState" }]
   },
@@ -18,7 +18,10 @@
   "routes": [{ "pattern": "witness.euca.in", "custom_domain": true }],
   "vars": {
     // The name in the witness's key and in its cosignature lines.
-    "WITNESS_NAME": "witness.euca.in"
+    "WITNESS_NAME": "witness.euca.in",
+    // Where the site is: what an auditor's passkey signature names. Set it
+    // when the address the Worker sees is not the one in the browser's bar.
+    "SITE_ORIGIN": "https://witness.euca.in"
   },
   "observability": { "enabled": true }
 }

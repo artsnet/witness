@@ -10,10 +10,12 @@
       "origin": "cucon.burug.co/dlm",
       "checkpoint_key": "cucon.burug.co/dlm+00000000+AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       "url": "https://cucon.burug.co/log",
-      "witnesses": [
+      "auditors": [
         {
           "name": "内部監査室",
-          "key": "cucon.burug.co/internal-audit+00000000+BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          "id": "AAAAAAAAAAAAAAAAAAAAAA",
+          "key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+          "alg": -7
         }
       ]
     }

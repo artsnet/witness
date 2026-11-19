@@ -6,31 +6,53 @@ Association (EUCA) at <https://witness.euca.in>.
 [日本語](README.ja.md)
 
 An organization that keeps a tamper-evident record of what it did (a
-[deedlog](https://github.com/eucassoc/deedlog) chain) signs a checkpoint of
-that record from time to time. A checkpoint signed only by the organization
-itself proves little: it could sign a different history tomorrow. This
-witness is a party outside the organization that cosigns each checkpoint after
-checking that the record only grew since the last one it saw. With the
-cosignature, anyone can check that a record existed at that time and has not
-been rewritten since.
+[deedlog](https://github.com/eucassoc/deedlog) chain) can sign it as often as
+it likes; signed by itself alone, it could still sign a different history
+tomorrow. This witness is a party outside the organization that cosigns after
+checking that what it is shown only grew.
 
-The witness is shared: several organizations' records are cosigned by the
-same server, and one page checks them all.
+What it is shown is not the record. The organization keeps its records to
+itself and, at a fixed interval, appends one commitment to a second, public
+chain: a fingerprint of the records added since the last one, deposited
+whether or not anything happened. The witness cosigns that chain
+([c2sp.org/tlog-witness](https://c2sp.org/tlog-witness), unchanged, so
+`dlog cosign` works against it). It learns that time passes, and nothing
+about how much the organization did or when.
 
-- **The witness** speaks [c2sp.org/tlog-witness](https://c2sp.org/tlog-witness)
-  with Ed25519 cosignatures ([tlog-cosignature](https://c2sp.org/tlog-cosignature)),
-  so `dlog cosign` and other C2SP clients work against it unchanged.
-- **The verification page** runs in the reader's browser. It fetches the
-  record and its checkpoint from the organization, and checks the chain, the
-  organization's signature, the cosignatures and the Merkle root itself. A
-  link with a token shows the records about one inquiry in plain words:
-  received, decrypted, working copy deleted, answered, deletion approved,
-  deleted. The token stays in the URL fragment and is sent to nobody.
+Who sees what:
 
-What the cosignature shows is that a record was not rewritten. It does not
-show that what the record says is true: records are the organization's own
-statements. The witness holds no contents, only the last checkpoint it
-cosigned for each record.
+| | sees | by |
+|---|---|---|
+| A person the records are about | their own records, each with a proof that it was committed to | the link they were given |
+| The organization's auditor | every record, in their browser on this site | a passkey registered here and with the organization |
+| Anyone | the rules in force, the state of cosigning, the auditor's signed results | nothing |
+| EUCA | one commitment per interval, and the auditor's results | — |
+
+The auditor is the organization's own (its internal audit office): somebody
+allowed to see how much was done. What is outside the organization is where
+the commitments and the results are kept. The organization cannot rewrite its
+records behind the commitments, and cannot remove or change a result.
+
+A cosignature shows that a record was not rewritten. It does not show that
+what the record says is true: records are the organization's own statements.
+
+## The page
+
+Everything is checked in the reader's browser.
+
+- `/#o=<origin>&t=<token>`: a person's link. The page asks the organization
+  for the records of `ref` (the first 32 hex digits of SHA-256 of the token;
+  the token itself is sent nowhere), checks each against the cosigned
+  commitments, and shows them in plain words. A record whose interval has not
+  come yet is shown as waiting.
+- `/#o=<origin>`: for anyone. The state of cosigning, the rules in force, and
+  the auditor's results, each result's signature checked with the registered
+  key.
+- `/#o=<origin>&audit`: for the auditor. Make a passkey; sign in to the
+  organization with it and receive the whole chain; check it against the
+  commitments; work out what the rules ask, with the same code the
+  organization's service uses ([tsutome](https://github.com/eucassoc/tsutome));
+  sign the result and leave it here.
 
 ## Endpoints
 
@@ -39,9 +61,34 @@ cosigned for each record.
 | `POST /add-checkpoint` | c2sp.org/tlog-witness. `200` with the cosignature line; `409` with the size the witness holds (`text/x.tlog.size`); `404` for a log that is not in the registry; `403` when the operator's signature does not verify; `422` when the consistency proof does not. |
 | `GET /witness.vkey` | The witness's verifier key. |
 | `GET /status.json` | The last checkpoint cosigned for each log: `{"witness": "<vkey>", "logs": {"<origin>": {"size", "root", "time"}}}`. |
-| `GET /registry.json` | The logs the witness cosigns. |
-| `GET /#o=<origin>` | The verification page for a log. |
-| `GET /#o=<origin>&t=<token>` | The records about one item: those whose `item` is the first 32 hex digits of SHA-256 of the token. |
+| `POST /results` | An auditor's signed result: `{"statement": "<JSON string>", "credential": {"id", "authenticatorData", "clientDataJSON", "signature"}}`. Kept if the log is registered, the passkey is one of its auditors', and the signature is over the hash of the statement, made on this site, within ten minutes of the statement's time. `201`, or `4xx` with the reason. |
+| `GET /results.json?o=<origin>` | The results kept for a log, newest first (at most 200). |
+| `GET /registry.json` | The logs the witness cosigns, and their auditors' keys. |
+
+A statement:
+
+```json
+{ "type": "audit-statement/v1", "origin": "dlm.example.com/contact", "auditor": "Internal audit",
+  "at": "2026-11-19T03:25:00Z",
+  "covers": { "anchors": 144, "root": "<checkpoint root, base64>", "through": "2026-11-19T03:20:00Z" },
+  "checks": { "records": "ok", "anchors": "ok", "cosignature": "ok" },
+  "findings": { "overdue": 0, "late": 1, "unapproved": 0, "plan_mismatch": 0, "not_told": 0, "no_key": 0 },
+  "note": "optional, at most 500 characters" }
+```
+
+## What the organization serves
+
+At the `url` of its registry entry, with `Access-Control-Allow-Origin: *`:
+
+- `GET /chain.jsonl`, `GET /checkpoint`: the public chain (named `origin`) of
+  records `{event: "chain.anchored", epoch, commit}`, and its signed, cosigned
+  checkpoint.
+- `GET /item?ref=<32 hex>`, `GET /rules`: `{origin, chain, records: [{line, anchor?: {seq, epoch, size, index, path, nonce}}]}`.
+  A record leads to `commit` of the public record `seq` (`commitOf` in
+  [`public/tlog.js`](public/tlog.js)); one without `anchor` waits for the next interval.
+- `POST /audit/challenge`, then `POST /audit/chain` with a passkey signature
+  over the challenge: `{origin, chain, records: [line...], anchors: [{seq, epoch, from, to, size, nonce, pad}]}`.
+- `GET /key`: its verifier key.
 
 ## Registering a log
 
@@ -55,20 +102,29 @@ maintainer) and deploy; see [`registry.example.json`](registry.example.json).
   "origin": "dlm.example.com/contact",
   "checkpoint_key": "dlm.example.com/contact+1a2b3c4d+AQ...",
   "url": "https://dlm.example.com/log",
-  "witnesses": [{ "name": "Internal audit", "key": "dlm.example.com/internal-audit+5e6f7a8b+BA..." }]
+  "auditors": [{ "name": "Internal audit", "id": "<credential id>", "key": "<public key>", "alg": -7 }]
 }
 ```
 
-- `origin`: the name of the chain, which is also the name of the checkpoint key.
-- `checkpoint_key`: the operator's verifier key (`dlog keygen` writes it to `*.vkey`).
-- `url`: where the operator publishes `GET <url>/checkpoint` (the latest signed
-  checkpoint with its cosignatures) and `GET <url>/chain.jsonl` (the records),
-  both with `Access-Control-Allow-Origin: *`. The page reads them; the witness does not.
-- `witnesses` (optional): other witnesses of this log, such as the
-  organization's internal audit office, shown on the page next to EUCA's.
+- `origin`: the name of the public chain, which is also the name of the checkpoint key.
+- `checkpoint_key`: the operator's verifier key.
+- `url`: where the operator serves what is listed above.
+- `auditors`: the passkeys whose results are kept and shown. The auditor
+  makes the key on the page (`/#o=<origin>&audit`), which shows this JSON; it
+  is registered here and with the organization.
 
+A log is a name and a key. The same name registered under a new key starts
+from nothing, and what was kept for a log no longer in the registry is deleted.
 An entry whose key does not parse, or whose key name is not the origin, is
 not accepted.
+
+## What this does not protect
+
+- EUCA could withhold or delete a result. Results are not themselves logged.
+- A passkey made here is bound to this site's domain. If the site moves, the
+  auditors make new keys.
+- A person's records carry their place in the organization's chain; whoever
+  holds the link learns how many records there were before each of theirs.
 
 ## The witness's key
 
@@ -85,22 +141,27 @@ Cloudflare Workers, with one SQLite-backed Durable Object (free plan) and
 static assets. In the dashboard: Workers & Pages, Create, Import a repository,
 this repository; the default build and deploy command (`npx wrangler deploy`)
 works. [`wrangler.jsonc`](wrangler.jsonc) attaches the custom domain
-`witness.euca.in`.
+`witness.euca.in` and names the site's address (`SITE_ORIGIN`), which a
+passkey's signature must have been made at.
 
 ## Development
 
 ```sh
 npm install
-npm test                         # the witness and the shared code
+npm test                         # the witness, the shared code, the page in a browser
 DLOG=/path/to/dlog npm test      # also against deedlog's own tool
-npx wrangler dev                 # the Worker, locally
+npx wrangler dev --var SITE_ORIGIN:http://localhost:8787
 node test/fixture.mjs            # the page with sample logs, at http://localhost:8930
+npm run vendor                   # after updating tsutome: rebuild public/vendor/tsutome-core.js
 ```
 
 The page tests run in a browser when Playwright is installed, and are skipped
-when it is not. `public/tlog.js` is the shared code: SHA-256, the Merkle tree,
-signed notes, checkpoints and cosignatures, with no dependencies, used by the
-witness and by the page.
+when it is not. [`public/tlog.js`](public/tlog.js) (SHA-256, the Merkle tree,
+signed notes, checkpoints, cosignatures, anchoring) and
+[`public/webauthn.js`](public/webauthn.js) (checking a passkey's signature)
+have no dependencies and are shared by the witness and the page.
+`public/vendor/tsutome-core.js` is generated from the tsutome package and
+committed, because the site deploys without a build step.
 
 ## License
 

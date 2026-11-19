@@ -4,18 +4,5 @@
     "operator": "一般社団法人エンドユーザーコンピューティング協会"
   },
   "quorum": 1,
-  "operators": [
-    {
-      "name": "合同会社Burug お問い合わせの取り扱い記録",
-      "origin": "cucon.burug.co/dlm",
-      "checkpoint_key": "cucon.burug.co/dlm+29038ce8+ARmMyvOa05duNmgqUqlyXYJIKp2V5k9kLKPTNqMQgqEs",
-      "url": "https://cucon.burug.co/log",
-      "witnesses": [
-        {
-          "name": "内部監査室",
-          "key": "cucon.burug.co/dlm/internal-audit+00af794d+BCuWXlkX+lJe1/Rz78yx7nGdqmAhD+K9536rOZoeayAw"
-        }
-      ]
-    }
-  ]
+  "operators": []
 }
