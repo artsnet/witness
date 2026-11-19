@@ -277,7 +277,7 @@ function checkNoteText(t) {
 }
 
 const sigLine = (signer, sig) => `${DASH}${signer.name} ${b64(concat(unhex(signer.id), sig))}\n`;
-const unhex = (s) => Uint8Array.from(s.match(/../g), (h) => parseInt(h, 16));
+export const unhex = (s) => Uint8Array.from(s.match(/../g) ?? [], (h) => parseInt(h, 16));
 
 /** Signs note text: the text, an empty line, and the signature line. */
 export async function signNote(noteText, signer) {
@@ -529,4 +529,70 @@ export function nextRecord(chain, { name, source, event, meta = {}, at = new Dat
     subject: { media_type: 'application/json', size: utf8(body).length, digest: { sha256: sha256hex(body) } },
     meta: clean,
   });
+}
+
+// ---- anchoring: a chain kept private, committed to through a public one ----
+//
+// The operator keeps its chain of records to itself. At a fixed interval it
+// appends one record to a second, public chain: a commitment to the records
+// added since the last one. A witness cosigns the public chain, and so learns
+// only that time passes. Whoever holds a record and its proof can still check
+// that it was committed to (deedlog spec/anchoring.md).
+
+const pow2 = (k) => {
+  let s = 1;
+  while (s < k) s *= 2;
+  return s;
+};
+const u32 = (n) => Uint8Array.of(n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255);
+const PAD = utf8('deedlog-anchor-pad/v1\n');
+
+/** The leaves of an interval: its records' leaf hashes, filled up to a power of two so that the tree does not tell how many there were. */
+export function anchorLeaves(leaves, pad) {
+  const size = pow2(Math.max(1, leaves.length));
+  const out = [...leaves];
+  for (let j = leaves.length; j < size; j++) out.push(sha256(concat(Uint8Array.of(0), PAD, pad, u32(j))));
+  return out;
+}
+
+/** What the public record carries for an interval. `chain` is the name of the private chain. */
+export const anchorCommit = ({ chain, epoch, size, root, nonce }) => sha256hex(`deedlog-anchor/v1\n${chain}\n${epoch}\n${size}\n${b64(root)}\n${nonce}\n`);
+
+/** An interval's tree and commitment, from the leaf hashes of its records. `nonce` and `pad` are 32 hex characters each, fresh for every interval. */
+export function anchor(leaves, { chain, epoch, nonce, pad }) {
+  const all = anchorLeaves(leaves, unhex(pad));
+  const root = merkleRoot(all);
+  return { size: all.length, root, commit: anchorCommit({ chain, epoch, size: all.length, root, nonce }), leaves: all };
+}
+
+/** The root a leaf leads to, given its place in a tree and the proof (RFC 9162, 2.1.3.2). */
+export function rootFromInclusion(leaf, index, size, proof) {
+  if (!Number.isInteger(index) || !Number.isInteger(size) || index < 0 || index >= size) throw new Error(`no leaf ${index} in a tree of ${size}`);
+  let fn = index;
+  let sn = size - 1;
+  let r = leaf;
+  for (const p of proof) {
+    if (sn === 0) throw new Error('the inclusion proof is too long');
+    if (fn % 2 === 1 || fn === sn) {
+      r = node(p, r);
+      while (fn % 2 === 0 && fn !== 0) {
+        fn = Math.floor(fn / 2);
+        sn = Math.floor(sn / 2);
+      }
+    } else r = node(r, p);
+    fn = Math.floor(fn / 2);
+    sn = Math.floor(sn / 2);
+  }
+  if (sn !== 0) throw new Error('the inclusion proof is too short');
+  return r;
+}
+
+/**
+ * The commitment a record leads to, from the record's line and its place in
+ * an interval: `{ epoch, size, index, path, nonce }`, the path as base64
+ * hashes. The caller compares it with the public record of that interval.
+ */
+export function commitOf(line, chain, at) {
+  const root = rootFromInclusion(leafHash(line), at.index, at.size, at.path.map(unb64));
+  return anchorCommit({ chain, epoch: at.epoch, size: at.size, root, nonce: at.nonce });
 }
