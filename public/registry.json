@@ -11,6 +11,15 @@
       "checkpoint_key": "cucon.burug.co/dlm+d7fb5bf8+AXxACSowhPhZOWh5gsGgMOonRxOSr7W4Wv1SGBc/LoO5",
       "url": "https://cucon.burug.co/log",
       "auditors": []
+    },
+    {
+      "name": "まる見え政治資金 連携デモ（架空のデータ） 公開データの更新の記録",
+      "kind": "direct",
+      "origin": "deedlog.org/demo/marumie",
+      "checkpoint_key": "deedlog.org/demo/marumie+38a69a15+AaaBQody/U32jhR1XV6F5ttV4MLPYAHcBtxVauz6ziXw",
+      "url": "https://deedlog.org/demo/marumie/ledger",
+      "site": "https://deedlog.org/demo/marumie/",
+      "auditors": []
     }
   ]
 }
