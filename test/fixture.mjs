@@ -188,7 +188,7 @@ export async function startFixture({ port = 0, now = Date.now() } = {}) {
   const registry = () => ({
     witness: { name: 'witness.euca.in', operator: '一般社団法人エンドユーザーコンピューティング協会' },
     quorum: 1,
-    operators: Object.values(ops).map((op) => ({ name: op.name, origin: op.origin, checkpoint_key: op.key.vkey, url: `/logs/${op.id}`, auditors: op.auditors })),
+    operators: Object.values(ops).map((op) => ({ name: op.name, origin: op.origin, checkpoint_key: op.key.vkey, url: `/logs/${op.id}`, auditors: op.auditors, ...(op.direct ? { kind: 'direct', site: op.site } : {}) })),
   });
   let witness = new Witness({ store, registry: registry(), now: () => new Date(now) });
   const witnessKey = t.parseVerifier((await (await witness.handle(new Request(`${base}/witness.vkey`))).text()).trim());
@@ -223,6 +223,27 @@ export async function startFixture({ port = 0, now = Date.now() } = {}) {
     const key = [...store.m.keys()].find((k) => k.startsWith('results:') && k.endsWith(ops.full.origin));
     const kept = store.m.get(key);
     kept[0] = { ...kept[0], statement: kept[0].statement.replace('"overdue":0', '"overdue":7') };
+  }
+
+  // A log of the other kind: the records themselves are public, because what they are about is.
+  const direct = {};
+  for (const [id, name, tamper] of [['ledger', '公開している帳簿の更新の記録'], ['rewritten', '書き換えられた帳簿の記録', true]]) {
+    const op = await new Operator({ id, name, now }).init();
+    op.direct = true;
+    op.site = `${base}/ledger-site/${id}`;
+    const at = (ago, event, meta) => op.outer.push(t.nextRecord(t.readChain(op.outer), { name: op.origin, source: { type: 'ledger', id: 'admin', collector: 'test' }, event, meta, at: new Date(now - ago) }));
+    at(3 * DAY, 'ledger.opened', {});
+    for (let i = 1; i <= 12; i++) at(3 * DAY - i * MIN, 'transaction.created', { org: 'sample', year: '2026', no: String(7000 + i) });
+    at(DAY, 'transaction.updated', { org: 'sample', year: '2026', no: '7002', replaces: t.sha256hex('before') });
+    at(DAY - MIN, 'transaction.deleted', { org: 'sample', year: '2026', no: '7012' });
+    ops[id] = op;
+    // The witness learns of a new log when it starts again with the registry that names it.
+    witness = new Witness({ store, registry: registry(), now: () => new Date(now) });
+    await op.publish(post, witnessKey);
+    // One more, not cosigned yet.
+    at(10 * MIN, 'transaction.created', { org: 'sample', year: '2026', no: '7013' });
+    if (tamper) op.outer[13] = op.outer[13].replace('"no":"7002"', '"no":"7003"');
+    direct[id] = op;
   }
 
   async function handle(req, res) {

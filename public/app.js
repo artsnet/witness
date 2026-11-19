@@ -144,12 +144,24 @@ const PROBLEMS = [
   [/^chain is/, '別の記録簿の要約が混ざっています。'],
   [/^not a commitment/, '区間の要約ではないものが混ざっています。'],
 ];
-const problemText = (p) => `${p.line} 件目の要約: ${PROBLEMS.find(([re]) => re.test(p.reason))?.[1] ?? p.reason}`;
+const problemText = (p, noun = '要約') => `${p.line} 件目の${noun}: ${(PROBLEMS.find(([re]) => re.test(p.reason))?.[1] ?? p.reason).replaceAll('要約', noun)}`;
 
-// ---- checking what the operator publishes: one commitment per interval ----
+// ---- checking what the operator publishes ----
+
+/**
+ * A log is one of two kinds (`kind` in the registry). `anchored`, the
+ * default: the operator keeps its records and publishes one commitment per
+ * interval, so that nothing tells how much it did or when. `direct`: the
+ * operator publishes the records themselves, because what they are about is
+ * public already (a published ledger, say), and checking them one by one
+ * against it is the point.
+ */
+const isDirect = (op) => op.kind === 'direct';
 
 async function verifyAnchors(op, eucaKey, status) {
-  const r = { op, checks: [], verdict: 'ok', reasons: [], entries: [], lines: [], size: 0 };
+  const direct = isDirect(op);
+  const noun = direct ? '記録' : '要約';
+  const r = { op, direct, noun, checks: [], verdict: 'ok', reasons: [], entries: [], lines: [], size: 0 };
   const check = (label, state, detail) => r.checks.push({ label, state, detail });
   const fail = (reason) => {
     r.verdict = 'fail';
@@ -175,7 +187,7 @@ async function verifyAnchors(op, eucaKey, status) {
     // A log that has only just begun has deposited nothing yet: that is waiting, not failing.
     if (!lines.length) {
       r.verdict = 'pending';
-      check('第三者の連署', 'warn', 'この記録は始まったばかりで、最初の区間の要約がまだ預けられていません。最初の区間が終わると預けられます。');
+      check('第三者の連署', 'warn', direct ? 'この記録簿には、まだ記録がありません。' : 'この記録は始まったばかりで、最初の区間の要約がまだ預けられていません。最初の区間が終わると預けられます。');
       return r;
     }
     note = await get(`${r.base}/checkpoint`);
@@ -190,13 +202,13 @@ async function verifyAnchors(op, eucaKey, status) {
   r.entries = chain.entries;
   r.lines = lines;
   if (chain.name !== op.origin) chain.problems.unshift({ line: 1, reason: `chain is ${JSON.stringify(chain.name)}` });
-  chain.entries.forEach((e) => {
+  if (!direct) chain.entries.forEach((e) => {
     if (e.event !== 'chain.anchored' || !/^[0-9a-f]{64}$/.test(e.meta.commit ?? '') || !e.meta.epoch) chain.problems.push({ line: e.seq + 1, reason: 'not a commitment' });
   });
   if (chain.problems.length) {
-    chain.problems.slice(0, 3).forEach((p) => fail(problemText(p)));
-    check('要約のつながり', 'fail', problemText(chain.problems[0]));
-  } else check('要約のつながり', 'ok', `区間ごとの要約 ${lines.length} 件すべてが、ひとつ前の要約とつながっています。`);
+    chain.problems.slice(0, 3).forEach((p) => fail(problemText(p, noun)));
+    check(`${noun}のつながり`, 'fail', problemText(chain.problems[0], noun));
+  } else check(`${noun}のつながり`, 'ok', direct ? `記録 ${lines.length} 件すべてが、ひとつ前の記録とつながっています。` : `区間ごとの要約 ${lines.length} 件すべてが、ひとつ前の要約とつながっています。`);
   r.lastEpoch = chain.entries.at(-1)?.meta.epoch;
 
   // 2. The checkpoint: the operator's signature, and the cosignature.
@@ -218,18 +230,18 @@ async function verifyAnchors(op, eucaKey, status) {
   if (byEuca) check('第三者の連署', 'ok', `EUCA の連署サーバーが ${when(byEuca.time * 1000)} に連署しました。`);
   else {
     if (r.verdict === 'ok') r.verdict = 'pending';
-    check('第三者の連署', 'warn', 'この時点の要約に対する EUCA の連署が、まだありません。');
+    check('第三者の連署', 'warn', `この時点の${noun}に対する EUCA の連署が、まだありません。`);
   }
 
   // 3. What was signed is what is published.
   const leaves = lines.map((l) => leafHash(l));
   if (cp.size > lines.length) {
-    fail(`署名された時点では ${cp.size} 件あった要約が、いまは ${lines.length} 件しか公開されていません。要約が削除されています。`);
-    check('署名された内容との一致', 'fail', `署名は ${cp.size} 件に対するものですが、公開されている要約は ${lines.length} 件です。`);
+    fail(`署名された時点では ${cp.size} 件あった${noun}が、いまは ${lines.length} 件しか公開されていません。${noun}が削除されています。`);
+    check('署名された内容との一致', 'fail', `署名は ${cp.size} 件に対するものですが、公開されている${noun}は ${lines.length} 件です。`);
   } else if (!equal(merkleRoot(leaves, cp.size), cp.root)) {
-    fail('公開されている要約が、署名された内容と一致しません。署名のあとで書き換えられています。');
-    check('署名された内容との一致', 'fail', '公開されている要約から計算した値が、署名された値と一致しません。');
-  } else check('署名された内容との一致', 'ok', `署名された ${cp.size} 件が、公開されている要約と一致します。`);
+    fail(`公開されている${noun}が、署名された内容と一致しません。署名のあとで書き換えられています。`);
+    check('署名された内容との一致', 'fail', `公開されている${noun}から計算した値が、署名された値と一致しません。`);
+  } else check('署名された内容との一致', 'ok', `署名された ${cp.size} 件が、公開されている${noun}と一致します。`);
 
   // 4. What EUCA's witness last cosigned is still there.
   const held = status?.logs?.[op.origin];
@@ -241,11 +253,11 @@ async function verifyAnchors(op, eucaKey, status) {
       root = undefined;
     }
     if (held.size > lines.length) {
-      fail(`EUCA が連署した時点では ${held.size} 件あった要約が、いまは ${lines.length} 件しか公開されていません。`);
-      check('EUCA の控えとの照合', 'fail', `EUCA は ${held.size} 件の時点に連署していますが、公開されている要約は ${lines.length} 件です。`);
+      fail(`EUCA が連署した時点では ${held.size} 件あった${noun}が、いまは ${lines.length} 件しか公開されていません。`);
+      check('EUCA の控えとの照合', 'fail', `EUCA は ${held.size} 件の時点に連署していますが、公開されている${noun}は ${lines.length} 件です。`);
     } else if (!root || !equal(merkleRoot(leaves, held.size), root)) {
-      fail('公開されている要約が、EUCA が連署した内容と一致しません。');
-      check('EUCA の控えとの照合', 'fail', 'EUCA が最後に連署した内容と、公開されている要約が一致しません。');
+      fail(`公開されている${noun}が、EUCA が連署した内容と一致しません。`);
+      check('EUCA の控えとの照合', 'fail', `EUCA が最後に連署した内容と、公開されている${noun}が一致しません。`);
     } else check('EUCA の控えとの照合', 'ok', `EUCA が最後に連署した時点（${when(held.time * 1000)}）の内容が、そのまま残っています。`);
   }
   return r;
@@ -318,7 +330,11 @@ const metaOf = (r) => (r.verdict === 'unavailable' ? [] : [r.op.name, r.eucaTime
 function logBanner(r, okBody) {
   const text = {
     ok: ['確認できました', [okBody]],
-    pending: !r.lines.length ? ['最初の要約を待っています', ['この記録は始まったばかりです。最初の区間が終わると、その区間の要約が第三者に預けられ、連署されます。']] : ['第三者の連署を待っています', ['運用者の署名は確認できましたが、この時点の要約に対する EUCA の連署がまだありません。しばらくしてから、もう一度開いてください。']],
+    pending: !r.lines.length
+      ? r.direct
+        ? ['最初の記録を待っています', ['この記録簿には、まだ記録がありません。']]
+        : ['最初の要約を待っています', ['この記録は始まったばかりです。最初の区間が終わると、その区間の要約が第三者に預けられ、連署されます。']]
+      : ['第三者の連署を待っています', [`運用者の署名は確認できましたが、この時点の${r.noun}に対する EUCA の連署がまだありません。しばらくしてから、もう一度開いてください。`]],
     fail: ['確認できませんでした', r.reasons],
     unavailable: ['確認できませんでした', r.reasons],
   }[r.verdict];
@@ -549,6 +565,64 @@ async function overview(r) {
   return out;
 }
 
+/** A log whose records are public: the records, checked; what kinds of event they hold; the latest of them. */
+function directOverview(r) {
+  const op = r.op;
+  const back = h('p', { class: 'back' }, again(), h('a', { href: '#' }, '連署している記録の一覧へ'));
+  const out = [logBanner(r, 'この記録は、作成されたあとに書き換えられていません。')];
+  if (!trusted(r)) return [...out, r.checks.length > 0 && checksSection(r), back];
+
+  const kinds = new Map();
+  for (const e of r.entries) kinds.set(e.event || '（種類なし）', (kinds.get(e.event || '（種類なし）') ?? 0) + 1);
+  const latest = r.entries.slice(-10).reverse();
+  const last = r.entries.at(-1);
+
+  out.push(
+    h(
+      'section',
+      { class: 'card', id: 'state' },
+      h('h2', null, '連署の状態'),
+      h(
+        'dl',
+        { class: 'facts-list' },
+        h('dt', null, '公開されている記録'),
+        h('dd', null, `${r.lines.length} 件`),
+        h('dt', null, '連署された範囲'),
+        h('dd', null, r.eucaTime ? `最初から ${Math.min(r.size, r.lines.length)} 件目まで` : 'まだありません'),
+        h('dt', null, 'EUCA の連署'),
+        h('dd', null, r.eucaTime ? when(r.eucaTime * 1000) : 'まだありません'),
+        h('dt', null, '最新の記録'),
+        h('dd', null, last?.at ? when(last.at) : 'まだありません'),
+      ),
+      r.lines.length > r.size && h('p', { class: 'lead' }, `新しい ${r.lines.length - r.size} 件は、まだ連署を待っています。次の連署で確かめられます。`),
+    ),
+    h(
+      'section',
+      { class: 'card', id: 'kinds' },
+      h('h2', null, '記録されている出来事'),
+      h('p', { class: 'lead' }, '出来事の種類は、運用者が決めた名前です。それぞれの記録には、対象の指紋（ハッシュ）が入っています。'),
+      h('ul', { class: 'counts' }, [...kinds].map(([kind, n]) => h('li', { 'data-kind': kind }, h('span', { class: 'mono' }, kind), h('b', null, String(n))))),
+    ),
+    h(
+      'section',
+      { class: 'card', id: 'latest' },
+      h('h2', null, '新しい記録'),
+      h('ol', { class: 'latest' }, latest.map((e) => h('li', { 'data-seq': String(e.seq) }, h('span', null, e.at ? when(e.at) : '日時不明'), h('span', { class: 'mono' }, e.event), h('span', { class: 'mono' }, `${e.seq} 番`)))),
+      h('p', { class: 'actions' }, h('a', { href: `${r.base}/chain.jsonl` }, '記録の全体を見る'), op.site && h('a', { href: op.site }, '運用者の公開ページ')),
+    ),
+    h(
+      'section',
+      { class: 'card explain' },
+      h('h2', null, 'ここで見えるもの、見えないもの'),
+      h('p', null, 'この運用者は、記録そのものを公開しています。記録が対応しているのはもともと公開しているデータで、記録の件数や時刻を隠す必要がないためです。EUCA の連署サーバーは、記録が増えるだけで、あとから書き換えられていないことを確かめて連署しています。'),
+      h('p', null, '公開されているデータが記録と合っているかは、記録の指紋と、運用者の公開ページのデータを照らし合わせて確かめます。記録の内容が事実かどうかは、ここでは分かりません。記録は運用者自身による申告です。'),
+    ),
+    checksSection(r),
+    back,
+  );
+  return out;
+}
+
 // ---- the auditor: a key, the whole chain, and a signed result ----
 
 const cred = (c) => ({ id: b64url(new Uint8Array(c.rawId)), authenticatorData: b64url(new Uint8Array(c.response.authenticatorData)), clientDataJSON: b64url(new Uint8Array(c.response.clientDataJSON)), signature: b64url(new Uint8Array(c.response.signature)) });
@@ -775,7 +849,7 @@ function listLogs(registry) {
       { class: 'card' },
       h('h2', null, '連署している記録'),
       ops.length
-        ? h('ul', { class: 'logs' }, ops.map((op) => h('li', null, h('a', { href: `#o=${encodeURIComponent(op.origin)}` }, h('b', null, op.name), h('span', { class: 'mono' }, op.origin)))))
+        ? h('ul', { class: 'logs' }, ops.map((op) => h('li', null, h('a', { href: `#o=${encodeURIComponent(op.origin)}` }, h('b', null, op.name), h('span', { class: 'mono' }, op.origin), isDirect(op) && h('span', { class: 'tag' }, '記録を公開')))))
         : h('p', { class: 'empty' }, 'まだ登録されている記録はありません。'),
     ),
     explain(),
@@ -813,6 +887,7 @@ async function main() {
   const op = (registry.operators ?? []).find((o) => o.origin === origin);
   if (!op) return show([unavailable('この記録は、EUCA の登録簿にありません。リンクが正しいか確かめてください。', [h('span', { class: 'mono' }, origin)]), h('p', { class: 'back' }, h('a', { href: '#' }, '連署している記録の一覧へ'))]);
 
+  if (isDirect(op)) return show(directOverview(await verifyAnchors(op, eucaKey, status)));
   if (params.has('audit')) return show(auditView(op, eucaKey, status));
   const r = await verifyAnchors(op, eucaKey, status);
   show(token ? await personView(r, token) : await overview(r));

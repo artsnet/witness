@@ -187,7 +187,7 @@ test('anyone sees the state of cosigning, the rules, and the auditor\'s results:
 
 test('the list of logs, and a log that is not registered', { skip }, async () => {
   const list = await open(fixture.list, 'list');
-  assert.equal(await list.$$eval('.logs li', (els) => els.length), 6);
+  assert.equal(await list.$$eval('.logs li', (els) => els.length), 8);
   // Following a link from the list checks that log, without reloading.
   await list.click('.logs a');
   await list.waitForSelector('.banner');
@@ -275,4 +275,44 @@ test('the auditor makes a key, verifies the whole chain in the browser, and leav
   assert.equal(await ask({ id: 'nobody', authenticatorData: '', clientDataJSON: '', signature: '' }), 403);
   assert.equal(await ask(posted.credential), 403, 'a signature over a statement is not a way in');
   await context.close();
+});
+
+test('a log that publishes its records is checked record by record, and shows them', { skip }, async () => {
+  const page = await open(fixture.link('ledger'), 'direct-ledger');
+  assert.equal(await verdict(page), 'ok');
+  const text = await page.innerText('#app');
+  for (const s of ['確認できました', '記録 16 件すべてが、ひとつ前の記録とつながっています', '署名された 15 件が、公開されている記録と一致します', '最初から 15 件目まで', '新しい 1 件は、まだ連署を待っています', 'EUCA の連署サーバーが', '記録そのものを公開しています']) assert.ok(text.includes(s), s);
+  assert.ok(!text.includes('要約'), 'a direct log has no summaries');
+  assert.deepEqual(await page.$$eval('#kinds li', (els) => els.map((e) => [e.dataset.kind, e.querySelector('b').textContent])), [
+    ['ledger.opened', '1'],
+    ['transaction.created', '13'],
+    ['transaction.updated', '1'],
+    ['transaction.deleted', '1'],
+  ]);
+  assert.deepEqual(await page.$$eval('#latest li', (els) => els.slice(0, 3).map((e) => e.dataset.seq)), ['15', '14', '13']);
+  assert.equal(await page.$$eval('.checks li', (els) => els.every((e) => e.className === 'is-ok')), true);
+  assert.equal(await page.$('#rules'), null, 'no rules, no auditor, no person\'s link');
+  await noProducts(page);
+  await page.close();
+  // A person's link or the auditor's way in leads to the same overview.
+  const audit = await open(fixture.link('ledger', '', '&audit'));
+  assert.equal(await audit.$('#kinds') !== null, true);
+  await audit.close();
+});
+
+test('a published record changed after it was cosigned is found', { skip }, async () => {
+  const page = await open(fixture.link('rewritten'), 'direct-rewritten');
+  assert.equal(await verdict(page), 'fail');
+  const text = await page.innerText('#app');
+  assert.ok(text.includes('15 件目の記録: ひとつ前の記録とつながりません'), text);
+  assert.ok(text.includes('公開されている記録が、署名された内容と一致しません'));
+  assert.equal(await page.$('#kinds'), null, 'nothing is read from a log that does not verify');
+  await page.close();
+});
+
+test('the list says which logs publish their records', { skip }, async () => {
+  const page = await open(fixture.list);
+  const tagged = await page.$$eval('.logs li', (els) => els.filter((e) => e.querySelector('.tag')).map((e) => e.querySelector('b').textContent));
+  assert.deepEqual(tagged, ['公開している帳簿の更新の記録', '書き換えられた帳簿の記録']);
+  await page.close();
 });

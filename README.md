@@ -121,6 +121,34 @@ from nothing, and what was kept for a log no longer in the registry is deleted.
 An entry whose key does not parse, or whose key name is not the origin, is
 not accepted.
 
+### A log that publishes its records
+
+Some operators have nothing to hide in how many records they make or when:
+what the records are about is published already, a ledger of political
+funds for example, and the point is that anyone can hold each published
+entry against its record. Such a log is registered with `"kind": "direct"`:
+
+```json
+{
+  "name": "Example party: changes to the published ledger",
+  "kind": "direct",
+  "origin": "ledger.example.org/changes",
+  "checkpoint_key": "ledger.example.org/changes+1a2b3c4d+AQ...",
+  "url": "https://ledger.example.org/ledger",
+  "site": "https://ledger.example.org/"
+}
+```
+
+At `url` the operator serves `GET /chain.jsonl` (the records themselves, a
+deedlog chain named `origin`) and `GET /checkpoint` (its signed, cosigned
+checkpoint), with `Access-Control-Allow-Origin: *`. The witness cosigns it as
+it does any other log; it never sees the difference. The page checks the
+records against the checkpoint and against what the witness last cosigned,
+and shows how many there are, of which kinds, and the latest; `site`, if
+given, is linked as the place to hold the records against the published data.
+There are no people's links and no auditor for such a log. Without `kind`, a
+log is anchored, as described above.
+
 ## What this does not protect
 
 - EUCA could withhold or delete a result. Results are not themselves logged.

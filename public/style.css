@@ -208,3 +208,17 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .facts-list { grid-template-columns: 1fr; gap: 0; }
   .facts-list dd { margin-bottom: 8px; }
 }
+
+/* A log that publishes its records: a quiet tag in the list, its event kinds and its latest records. */
+.logs a .tag { align-self: flex-start; margin-top: 6px; background: var(--muted-bg); color: var(--soft); }
+#kinds .counts li span { overflow-wrap: anywhere; }
+.latest { list-style: none; margin: 10px 0 0; padding: 0; }
+.latest li { display: grid; grid-template-columns: 13em 1fr auto; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+.latest li:first-child { border-top: 0; }
+.latest li .mono { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  #kinds .counts { grid-template-columns: 1fr; }
+  #kinds .counts li span { overflow-wrap: normal; }
+  .latest li { grid-template-columns: 1fr auto; }
+  .latest li span:first-child { grid-column: 1 / -1; color: var(--soft); font-size: 13px; }
+}
