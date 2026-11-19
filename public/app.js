@@ -171,7 +171,14 @@ async function verifyAnchors(op, eucaKey, status) {
   let lines;
   r.base = op.url.replace(/\/$/, '');
   try {
-    [note, lines] = await Promise.all([get(`${r.base}/checkpoint`), get(`${r.base}/chain.jsonl`).then((t) => t.split('\n').filter(Boolean))]);
+    lines = (await get(`${r.base}/chain.jsonl`)).split('\n').filter(Boolean);
+    // A log that has only just begun has deposited nothing yet: that is waiting, not failing.
+    if (!lines.length) {
+      r.verdict = 'pending';
+      check('第三者の連署', 'warn', 'この記録は始まったばかりで、最初の区間の要約がまだ預けられていません。最初の区間が終わると預けられます。');
+      return r;
+    }
+    note = await get(`${r.base}/checkpoint`);
   } catch {
     r.verdict = 'unavailable';
     r.reasons.push('運用者のサーバーから情報を取得できませんでした。時間をおいて、もう一度開いてください。');
@@ -311,7 +318,7 @@ const metaOf = (r) => (r.verdict === 'unavailable' ? [] : [r.op.name, r.eucaTime
 function logBanner(r, okBody) {
   const text = {
     ok: ['確認できました', [okBody]],
-    pending: ['第三者の連署を待っています', ['運用者の署名は確認できましたが、この時点の要約に対する EUCA の連署がまだありません。しばらくしてから、もう一度開いてください。']],
+    pending: !r.lines.length ? ['最初の要約を待っています', ['この記録は始まったばかりです。最初の区間が終わると、その区間の要約が第三者に預けられ、連署されます。']] : ['第三者の連署を待っています', ['運用者の署名は確認できましたが、この時点の要約に対する EUCA の連署がまだありません。しばらくしてから、もう一度開いてください。']],
     fail: ['確認できませんでした', r.reasons],
     unavailable: ['確認できませんでした', r.reasons],
   }[r.verdict];
