@@ -18,7 +18,7 @@
       "origin": "deedlog.org/demo/marumie",
       "checkpoint_key": "deedlog.org/demo/marumie+38a69a15+AaaBQody/U32jhR1XV6F5ttV4MLPYAHcBtxVauz6ziXw",
       "url": "https://deedlog.org/demo/marumie/ledger",
-      "site": "https://deedlog.org/demo/marumie/",
+      "site": "https://marumie-deedlog-demo.vercel.app/o/sample-party/2026/ledger",
       "auditors": []
     }
   ]
