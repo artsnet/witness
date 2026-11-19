@@ -4,5 +4,13 @@
     "operator": "一般社団法人エンドユーザーコンピューティング協会"
   },
   "quorum": 1,
-  "operators": []
+  "operators": [
+    {
+      "name": "合同会社Burug お問い合わせの取り扱い記録",
+      "origin": "cucon.burug.co/dlm",
+      "checkpoint_key": "cucon.burug.co/dlm+d7fb5bf8+AXxACSowhPhZOWh5gsGgMOonRxOSr7W4Wv1SGBc/LoO5",
+      "url": "https://cucon.burug.co/log",
+      "auditors": []
+    }
+  ]
 }
