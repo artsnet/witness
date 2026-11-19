@@ -81,6 +81,15 @@ test('only a value computed from the token is sent, and only to the operator', {
   assert.ok(seen.some((u) => u.includes('/logs/full/item?ref=')));
   assert.ok(!seen.some((u) => u.includes(fixture.tokens.full)), 'the token itself is sent nowhere');
   await page.close();
+  // What comes back says what each record is about and where it sits in its interval; not where it sits in the operator's chain.
+  const got = await (await fetch(seen.find((u) => u.includes('/logs/full/item?ref=')))).json();
+  assert.equal(got.records.length, 8);
+  for (const rec of got.records) {
+    assert.deepEqual(Object.keys(rec).sort(), ['anchor', 'body']);
+    assert.deepEqual(Object.keys(rec.anchor).sort(), ['blind', 'epoch', 'index', 'nonce', 'path', 'record', 'seq', 'size']);
+    assert.ok(!/"(seq|prev|chain)"/.test(rec.body), rec.body);
+    assert.equal(Math.log2(rec.anchor.size) % 1, 0, 'the interval\'s tree is a power of two');
+  }
 });
 
 test('what is still due is shown with its deadline, and what is late as late', { skip }, async () => {
@@ -115,7 +124,7 @@ test('records whose interval has not come wait, calmly', { skip }, async () => {
   await fresh.close();
 });
 
-test('a record that is not the one committed to is a failure, and is not shown', { skip }, async () => {
+test('what is said about a record, if it is not what was committed to, is a failure and is not shown', { skip }, async () => {
   const page = await open(fixture.link('altered', fixture.tokens.full), 'person-altered');
   assert.equal(await verdict(page), 'fail');
   const text = await page.innerText('#app');

@@ -55,6 +55,7 @@ class Operator {
     this.origin = `${id}.example/dlm`;
     this.chain = `${this.origin}/records`;
     this.lines = [];
+    this.bodies = [];
     this.outer = [];
     this.anchors = [];
     this.auditors = [];
@@ -70,7 +71,9 @@ class Operator {
   }
 
   add(ago, event, meta) {
-    this.lines.push(t.nextRecord(t.readChain(this.lines), { name: this.chain, source: { type: 'cucon', id: this.chain, collector: 'test' }, event, meta, at: new Date(this.now - ago) }));
+    const { line, body } = t.makeRecord(t.readChain(this.lines), { name: this.chain, source: { type: 'cucon', id: this.chain, collector: 'test' }, event, meta, at: new Date(this.now - ago) });
+    this.lines.push(line);
+    this.bodies.push(body);
   }
 
   /** Commits to everything added since the last time, under the interval that ended `ago` before now. */
@@ -79,10 +82,10 @@ class Operator {
     const to = this.lines.length;
     const epoch = iso(Math.floor((this.now - ago) / INTERVAL) * INTERVAL);
     const secrets = { nonce: hex16(), pad: hex16() };
-    const a = t.anchor(this.lines.slice(from, to).map((l) => t.leafHash(l)), { chain: this.chain, epoch, ...secrets });
+    const a = t.anchor(this.lines.slice(from, to), { chain: this.chain, epoch, ...secrets });
     const seq = this.outer.length;
     this.outer.push(t.nextRecord(t.readChain(this.outer), { name: this.origin, source: { type: 'cucon', id: this.origin, collector: 'test' }, event: 'chain.anchored', meta: { epoch, commit: a.commit }, at: new Date(this.now - ago) }));
-    this.anchors.push({ seq, epoch, from, to, size: a.size, ...secrets, leaves: a.leaves });
+    this.anchors.push({ seq, epoch, from, to, size: a.size, ...secrets });
   }
 
   /** Signs the public chain as it is and, unless told not to, has the witness cosign it. */
@@ -93,24 +96,25 @@ class Operator {
     this.checkpoint = note;
   }
 
+  /** What is handed out for record `i`: where it sits in its interval, never its line. */
   proofFor(i) {
     const a = this.anchors.find((x) => i >= x.from && i < x.to);
-    return a && { seq: a.seq, epoch: a.epoch, size: a.size, index: i - a.from, path: t.inclusionProof(a.leaves, i - a.from).map(t.b64), nonce: a.nonce };
+    return a && t.recordProof(this.lines.slice(a.from, a.to), i - a.from, a);
   }
 
   bundle(pick) {
     const records = [];
-    this.lines.forEach((line, i) => {
-      const meta = JSON.parse(line).meta;
-      if (!pick(meta)) return;
+    this.bodies.forEach((body, i) => {
+      const about = JSON.parse(body);
+      if (!pick(about)) return;
       const anchor = this.proofFor(i);
-      records.push({ line: this.tamper.item?.(line, meta) ?? line, ...(anchor ? { anchor } : {}) });
+      records.push({ body: this.tamper.item?.(body, about) ?? body, ...(anchor ? { anchor } : {}) });
     });
     return { origin: this.origin, chain: this.chain, records };
   }
 
   everything() {
-    return { origin: this.origin, chain: this.chain, records: this.lines, anchors: this.anchors.map(({ leaves, ...a }) => a) };
+    return { origin: this.origin, chain: this.chain, records: this.lines, anchors: this.anchors };
   }
 }
 
@@ -156,11 +160,11 @@ export async function startFixture({ port = 0, now = Date.now() } = {}) {
     for (const s of lifecycle(itemOf(tokens.full), 25 * MIN, 5).slice(3)) op.add(...s);
     op.add(2 * MIN, 'data.received', { item: itemOf(tokens.fresh), form: 'contact', by: 'site' });
   });
-  // A record handed over is not the one that was committed to.
+  // What is handed over about a record is not what was committed to.
   await make('altered', '書き換えられた記録', (op) => {
     for (const s of lifecycle(itemOf(tokens.full), 30 * MIN)) op.add(...s);
     op.anchor(0);
-    op.tamper.item = (line, meta) => (meta.event === 'data.decrypted' ? line.replace('"by":"support-agent"', '"by":"support"') : undefined);
+    op.tamper.item = (body, about) => (about.event === 'data.decrypted' ? body.replace('"by":"support-agent"', '"by":"support"') : undefined);
   });
   // The public chain itself was changed after it was signed.
   await make('tampered', '要約が書き換えられた記録', (op) => {

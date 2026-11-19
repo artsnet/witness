@@ -2,8 +2,10 @@
 // browser: the page fetches the registry, the operator's public chain of
 // commitments and its checkpoint, and trusts none of them until the
 // signatures and the hashes agree. Records stay with the operator: a person
-// is handed their own, each with a proof that it was committed to; the
-// operator's auditor is handed all of them after signing in with a passkey.
+// is handed what their own records say, each with a proof that it was
+// committed to, and nothing that tells where a record sits in the operator's
+// chain; the operator's auditor is handed all of it after signing in with a
+// passkey.
 // The token in a person's link stays in the fragment; only a value computed
 // from it is sent, to the operator, to ask for that person's records.
 import { anchor as anchorOf, b64, b64url, commitOf, equal, hex, leafHash, merkleRoot, parseVerifier, readChain, sha256, unb64, utf8, verifyCheckpoint } from './tlog.js';
@@ -70,29 +72,31 @@ function rulesOf(entries) {
     if (!id) continue;
     if (e.event === 'rule.adopted') {
       const where = Object.entries(e.meta).filter(([k]) => k.startsWith('where.')).map(([k, v]) => [k.slice(6), v]);
-      versions.set(id, [...(versions.get(id) ?? []), { id, title: e.meta.title ?? id, source: e.meta.source, when: e.meta.when, expect: e.meta.expect, within: e.meta.within, approval: e.meta.approval, per: e.meta.per ?? 'item', where, seq: e.seq, at: e.at, state: e.state, retired: false }]);
+      versions.set(id, [...(versions.get(id) ?? []), { id, title: e.meta.title ?? id, source: e.meta.source, when: e.meta.when, expect: e.meta.expect, within: e.meta.within, approval: e.meta.approval, per: e.meta.per ?? 'item', where, at: e.at, state: e.state, retired: false }]);
     } else if (e.event === 'rule.retired') {
       const last = versions.get(id)?.at(-1);
       if (last) last.retired = true;
     }
   }
-  return [...versions.values()].map((v) => ({ ...v.at(-1), firstSeq: v[0].seq, firstAt: v[0].at })).filter((r) => !r.retired);
+  return [...versions.values()].map((v) => ({ ...v.at(-1), firstAt: v[0].at })).filter((r) => !r.retired);
 }
 
 /** The same id an operator's service gives a duty: the rule and the thing it is about. */
 const dutyId = (rule, item) => hex(sha256(utf8([rule, `item=${item}`].join(String.fromCharCode(0x1f))))).slice(0, 12);
 
-function plansFor(rules, entries, item, now) {
+/** What the rules ask for one item, from that item's records in the order they were made. */
+function plansFor(rules, mine, now) {
   const out = [];
   for (const rule of rules) {
     if (rule.per !== 'item') continue;
     const ms = duration(rule.within);
     if (ms === undefined) continue;
-    const trigger = entries.find((e) => e.event === rule.when && e.meta.item === item && rule.where.every(([k, v]) => e.meta[k] === v));
-    if (!trigger) continue;
-    const done = entries.find((e) => e.event === rule.expect && e.seq > trigger.seq && e.meta.item === item);
+    const i = mine.findIndex((e) => e.event === rule.when && rule.where.every(([k, v]) => e.meta[k] === v));
+    if (i < 0) continue;
+    const trigger = mine[i];
+    const done = mine.slice(i + 1).find((e) => e.event === rule.expect);
     // What was already there when the rule was first adopted comes under it from the adoption on.
-    const due = Date.parse(rule.firstSeq > trigger.seq ? rule.firstAt : trigger.at) + ms;
+    const due = Math.max(Date.parse(rule.firstAt), Date.parse(trigger.at)) + ms;
     out.push({ rule, due, done, late: done ? Date.parse(done.at) > due : now > due });
   }
   return out;
@@ -244,50 +248,49 @@ const trusted = (r) => r.verdict === 'ok' || r.verdict === 'pending';
 
 // ---- checking records handed over with their proofs ----
 
-function parseLine(line) {
-  const rec = JSON.parse(line);
+/** What a record is about: its event, its time, and the rest. Nothing here says where the record sits in the operator's chain. */
+function parseBody(body) {
+  const about = JSON.parse(body);
   const meta = {};
-  if (rec.meta && typeof rec.meta === 'object') for (const [k, v] of Object.entries(rec.meta)) if (typeof v === 'string') meta[k] = v;
-  const { event, ...rest } = meta;
-  return { seq: rec.seq, at: typeof rec.collected_at === 'string' ? rec.collected_at : '', chain: rec.chain, event: event ?? '', meta: rest };
+  for (const [k, v] of Object.entries(about)) if (typeof v === 'string' && k !== 'event' && k !== 'at') meta[k] = v;
+  if (typeof about.event !== 'string' || typeof about.at !== 'string') throw new Error('not what a record is about');
+  return { at: about.at, event: about.event, meta };
 }
 
 /**
- * Each record becomes an entry with a state: `confirmed` (it leads to a
- * commitment the third party has cosigned), `waiting` (its interval has not
- * come, or has not been cosigned yet) or `failed` (it does not lead to the
- * commitment it names).
+ * Each record handed over becomes an entry with a state: `confirmed` (what
+ * it says leads to a commitment the third party has cosigned), `waiting`
+ * (its interval has not come, or has not been cosigned yet) or `failed` (it
+ * does not lead to the commitment it names). The order is the one they were
+ * made in: by their own time, and as handed over within a second.
  */
 function checkBundle(r, bundle) {
   const out = [];
   for (const rec of bundle.records ?? []) {
     let e;
     try {
-      e = parseLine(rec.line);
+      e = parseBody(rec.body);
     } catch {
-      out.push({ seq: -1, at: '', event: '', meta: {}, state: 'failed', why: '記録として読めません。' });
+      out.push({ at: '', event: '', meta: {}, state: 'failed' });
       continue;
     }
     const a = rec.anchor;
-    if (e.chain !== bundle.chain) e.state = 'failed';
-    else if (!a) e.state = 'waiting';
+    if (!a) e.state = 'waiting';
     else {
       const pub = r.entries[a.seq];
       let commit;
       try {
-        commit = commitOf(rec.line, bundle.chain, a);
+        commit = commitOf(rec.body, bundle.chain, a);
       } catch {
         commit = undefined;
       }
       if (!pub) e.state = 'waiting';
       else if (!commit || pub.meta.commit !== commit || pub.meta.epoch !== a.epoch) e.state = 'failed';
       else e.state = a.seq < r.size && r.eucaTime ? 'confirmed' : 'waiting';
-      e.epoch = a.epoch;
     }
-    if (e.state === 'failed') e.why = '連署された要約と一致しません。';
     out.push(e);
   }
-  return out.sort((x, y) => x.seq - y.seq);
+  return out.map((e, i) => [e, i]).sort(([x, i], [y, j]) => (Date.parse(x.at) || 0) - (Date.parse(y.at) || 0) || i - j).map(([e]) => e);
 }
 
 // ---- the screens ----
@@ -340,7 +343,7 @@ function explain() {
       h('dt', null, 'わからないこと'),
       h('dd', null, '記録の内容が事実かどうか。記録は運用者自身による申告です。EUCA は、申告があとから書き換えられていないことだけを確かめています。'),
       h('dt', null, 'EUCA が持っているもの'),
-      h('dd', null, '記録そのものは持っていません。預かっているのは、一定の間隔ごとの要約（その時点までの記録から計算した値）だけで、そこから記録の中身や件数は分かりません。この確認はすべてお使いのブラウザの中で行われます。リンクに含まれる確認用の番号はどこにも送られず、運用者には、そこから計算した照合用の値だけを送って、あなたの記録を受け取ります。'),
+      h('dd', null, '記録そのものは持っていません。預かっているのは、一定の間隔ごとの要約（その時点までの記録から計算した値）だけで、そこから記録の中身や件数は分かりません。この確認はすべてお使いのブラウザの中で行われます。リンクに含まれる確認用の番号はどこにも送られず、運用者には、そこから計算した照合用の値だけを送って、あなたの記録の内容と、その証明を受け取ります。'),
     ),
   );
 }
@@ -348,7 +351,7 @@ function explain() {
 const WAITING = '第三者の確認待ち（次の区間で確認されます）';
 
 function timeline(mine, rules) {
-  const plans = plansFor(rules, mine, mine[0].meta.item, Date.now());
+  const plans = plansFor(rules, mine, Date.now());
   return h(
     'section',
     { class: 'card' },
@@ -565,7 +568,6 @@ async function auditChain(r, data) {
   else check('記録のつながり', 'ok', `${lines.length} 件すべてが、ひとつ前の記録とつながっています。`);
 
   // 2. The commitments: each one is the commitment to its interval's records, and the intervals leave no gap.
-  const leaves = lines.map((l) => leafHash(l));
   const anchors = [...(data.anchors ?? [])].sort((x, y) => x.seq - y.seq);
   let covered = 0;
   let matched = 0;
@@ -579,7 +581,7 @@ async function auditChain(r, data) {
     else {
       let made;
       try {
-        made = anchorOf(leaves.slice(x.from, x.to), { chain: data.chain, epoch: x.epoch, nonce: x.nonce, pad: x.pad });
+        made = anchorOf(lines.slice(x.from, x.to), { chain: data.chain, epoch: x.epoch, nonce: x.nonce, pad: x.pad });
       } catch {
         made = undefined;
       }

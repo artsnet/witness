@@ -20,7 +20,7 @@
 
 | | 見えるもの | 資格 |
 |---|---|---|
-| 記録の対象になっている本人 | 自分の記録と、それが要約に含まれている証明 | 受け取ったリンク |
+| 記録の対象になっている本人 | 自分の記録の内容と、それが要約に含まれている証明 | 受け取ったリンク |
 | 組織の監査担当 | すべての記録（このサイトの上の、自分のブラウザの中で） | ここと組織の両方に登録したパスキー |
 | 誰でも | 採用されているルール、連署の状態、監査担当が署名した検証結果 | なし |
 | EUCA | 区間ごとの要約と、監査担当の検証結果 | — |
@@ -73,9 +73,10 @@
 
 - `GET /chain.jsonl`、`GET /checkpoint`: 公開のチェーン（名前は `origin`）。記録は
   `{event: "chain.anchored", epoch, commit}`。署名と連署のついたチェックポイント。
-- `GET /item?ref=<16進32桁>`、`GET /rules`: `{origin, chain, records: [{line, anchor?: {seq, epoch, size, index, path, nonce}}]}`。
-  記録は、公開のチェーンの `seq` 番の `commit` に行き着きます（[`public/tlog.js`](public/tlog.js) の
-  `commitOf`）。`anchor` のない記録は、次の区間を待っています。
+- `GET /item?ref=<16進32桁>`、`GET /rules`: `{origin, chain, records: [{body, anchor?: {seq, epoch, size, index, path, nonce, blind, record}}]}`。
+  `body` は、記録の内容（出来事、時刻、識別用の番号）です。記録の subject のダイジェストの元になる
+  JSON の文字列で、記録の行そのものは渡しません。公開のチェーンの `seq` 番の `commit` に行き着きます
+  （[`public/tlog.js`](public/tlog.js) の `commitOf`）。`anchor` のない記録は、次の区間を待っています。
 - `POST /audit/challenge`、続けて、そのチャレンジへのパスキーの署名をつけた `POST /audit/chain`:
   `{origin, chain, records: [line...], anchors: [{seq, epoch, from, to, size, nonce, pad}]}`。
 - `GET /key`: 検証用の鍵。
@@ -111,8 +112,9 @@
 - EUCA は、検証結果を出さなかったり、消したりできます。検証結果そのものは、記録簿に載せていません。
 - ここで作ったパスキーは、このサイトのドメインに結びついています。サイトが移れば、監査担当は
   鍵を作り直します。
-- 本人が受け取る記録には、組織のチェーンの中での位置が入っています。リンクを持つ人には、
-  自分のそれぞれの記録より前に何件あったかが分かります。
+- 証明を受け取った人には、組織について二つのことが分かります。その区間の木の大きさ（2の累乗なので、
+  その区間の記録の件数の上限）と、その中での記録の位置です。記録が組織のチェーンの何番目にあるか、
+  チェーンの長さがどれだけかは分かりません。
 
 ## 連署サーバーの鍵
 

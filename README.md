@@ -23,7 +23,7 @@ Who sees what:
 
 | | sees | by |
 |---|---|---|
-| A person the records are about | their own records, each with a proof that it was committed to | the link they were given |
+| A person the records are about | what their own records say, each with a proof that it was committed to | the link they were given |
 | The organization's auditor | every record, in their browser on this site | a passkey registered here and with the organization |
 | Anyone | the rules in force, the state of cosigning, the auditor's signed results | nothing |
 | EUCA | one commitment per interval, and the auditor's results | — |
@@ -83,9 +83,12 @@ At the `url` of its registry entry, with `Access-Control-Allow-Origin: *`:
 - `GET /chain.jsonl`, `GET /checkpoint`: the public chain (named `origin`) of
   records `{event: "chain.anchored", epoch, commit}`, and its signed, cosigned
   checkpoint.
-- `GET /item?ref=<32 hex>`, `GET /rules`: `{origin, chain, records: [{line, anchor?: {seq, epoch, size, index, path, nonce}}]}`.
-  A record leads to `commit` of the public record `seq` (`commitOf` in
-  [`public/tlog.js`](public/tlog.js)); one without `anchor` waits for the next interval.
+- `GET /item?ref=<32 hex>`, `GET /rules`: `{origin, chain, records: [{body, anchor?: {seq, epoch, size, index, path, nonce, blind, record}}]}`.
+  `body` is what a record is about (its event, its time, its identifiers), as
+  the JSON text the record's subject digest is of; the record's line is not
+  handed out. It leads to `commit` of the public record `seq` (`commitOf` in
+  [`public/tlog.js`](public/tlog.js)); a record without `anchor` waits for the
+  next interval.
 - `POST /audit/challenge`, then `POST /audit/chain` with a passkey signature
   over the challenge: `{origin, chain, records: [line...], anchors: [{seq, epoch, from, to, size, nonce, pad}]}`.
 - `GET /key`: its verifier key.
@@ -123,8 +126,10 @@ not accepted.
 - EUCA could withhold or delete a result. Results are not themselves logged.
 - A passkey made here is bound to this site's domain. If the site moves, the
   auditors make new keys.
-- A person's records carry their place in the organization's chain; whoever
-  holds the link learns how many records there were before each of theirs.
+- A proof tells its holder two things about the organization: the size of the
+  interval's tree, which is a power of two (so an upper bound on how many
+  records the interval had), and the record's position in it. It does not
+  tell where the record sits in the organization's chain, or how long that is.
 
 ## The witness's key
 
