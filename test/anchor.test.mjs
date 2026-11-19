@@ -9,20 +9,40 @@ import { passkey } from './passkey.mjs';
 
 const hex = (n) => randomBytes(n).toString('hex');
 
-test('a record leads to its interval\'s commitment, and to no other', () => {
+/** `k` records of a chain, as lines and as the bodies their subject digests are of. */
+function records(k, name = 'log.example/dlm/records') {
+  const lines = [];
+  const bodies = [];
+  for (let i = 0; i < k; i++) {
+    const r = t.makeRecord(t.readChain(lines), { name, source: { type: 'test', id: name, collector: 'test' }, event: 'thing.happened', meta: { item: hex(16) } });
+    lines.push(r.line);
+    bodies.push(r.body);
+  }
+  return { lines, bodies };
+}
+
+test('what a record is about leads to its interval\'s commitment, and to no other', () => {
   for (const k of [0, 1, 2, 3, 4, 5, 8, 9, 31]) {
-    const lines = Array.from({ length: k }, (_, i) => JSON.stringify({ seq: i, r: hex(4) }));
+    const { lines, bodies } = records(k);
     const terms = { chain: 'log.example/dlm/records', epoch: '2026-11-19T03:20:00Z', nonce: hex(16), pad: hex(16) };
-    const a = t.anchor(lines.map((l) => t.leafHash(l)), terms);
+    const a = t.anchor(lines, terms);
     assert.equal(a.size, k <= 1 ? 1 : 2 ** Math.ceil(Math.log2(k)), `${k} records fill a tree of a power of two`);
-    lines.forEach((line, index) => {
-      const at = { epoch: terms.epoch, size: a.size, index, path: t.inclusionProof(a.leaves, index).map(t.b64), nonce: terms.nonce };
-      assert.equal(t.commitOf(line, terms.chain, at), a.commit);
-      assert.notEqual(t.commitOf(line + ' ', terms.chain, at), a.commit, 'a changed record');
-      assert.notEqual(t.commitOf(line, terms.chain, { ...at, epoch: '2026-11-19T03:30:00Z' }), a.commit, 'another interval');
-      assert.notEqual(t.commitOf(line, terms.chain, { ...at, nonce: hex(16) }), a.commit, 'another nonce');
-      if (a.size > 1) assert.notEqual(t.commitOf(line, terms.chain, { ...at, index: (index + 1) % a.size }), a.commit, 'another place');
+    bodies.forEach((body, i) => {
+      const at = t.recordProof(lines, i, { seq: 7, ...terms });
+      assert.deepEqual([at.seq, at.epoch, at.size, at.index], [7, terms.epoch, a.size, i]);
+      assert.equal(t.commitOf(body, terms.chain, at), a.commit);
+      assert.notEqual(t.commitOf(body + ' ', terms.chain, at), a.commit, 'something else');
+      assert.notEqual(t.commitOf(body, terms.chain, { ...at, epoch: '2026-11-19T03:30:00Z' }), a.commit, 'another interval');
+      assert.notEqual(t.commitOf(body, terms.chain, { ...at, nonce: hex(16) }), a.commit, 'another nonce');
+      assert.notEqual(t.commitOf(body, terms.chain, { ...at, blind: hex(32) }), a.commit, 'another blind');
+      assert.notEqual(t.commitOf(body, terms.chain, { ...at, record: hex(32) }), a.commit, 'another record');
+      if (a.size > 1) assert.notEqual(t.commitOf(body, terms.chain, { ...at, index: (i + 1) % a.size }), a.commit, 'another place');
+      // What is handed over says nothing of the record's place in the chain.
+      assert.deepEqual(Object.keys(at).sort(), ['blind', 'epoch', 'index', 'nonce', 'path', 'record', 'seq', 'size']);
+      assert.deepEqual(Object.keys(JSON.parse(body)).sort(), ['at', 'event', 'item']);
     });
+    // A line changed anywhere but in what it is about still changes the commitment.
+    if (k) assert.notEqual(t.anchor([lines[0].replace('"type":"test"', '"type":"tess"'), ...lines.slice(1)], terms).commit, a.commit);
   }
 });
 

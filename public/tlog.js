@@ -514,12 +514,12 @@ export function readChain(lines) {
  * The next record of a chain, as its line. The subject is the event itself:
  * the names and identifiers in `meta`, never the data the event is about.
  */
-export function nextRecord(chain, { name, source, event, meta = {}, at = new Date() }) {
+export function makeRecord(chain, { name, source, event, meta = {}, at = new Date() }) {
   const time = at.toISOString().replace(/\.\d{3}Z$/, 'Z');
   const clean = { event };
   for (const [k, v] of Object.entries(meta)) if (v !== undefined && v !== '' && k !== 'event') clean[k] = String(v);
   const body = JSON.stringify({ ...clean, at: time });
-  return JSON.stringify({
+  const line = JSON.stringify({
     spec: 'deedlog/v0.1',
     chain: chain.name ?? name,
     seq: chain.entries.length,
@@ -529,15 +529,24 @@ export function nextRecord(chain, { name, source, event, meta = {}, at = new Dat
     subject: { media_type: 'application/json', size: utf8(body).length, digest: { sha256: sha256hex(body) } },
     meta: clean,
   });
+  return { line, body };
 }
+
+/** The next record of a chain, as its line. */
+export const nextRecord = (chain, opts) => makeRecord(chain, opts).line;
 
 // ---- anchoring: a chain kept private, committed to through a public one ----
 //
 // The operator keeps its chain of records to itself. At a fixed interval it
 // appends one record to a second, public chain: a commitment to the records
 // added since the last one. A witness cosigns the public chain, and so learns
-// only that time passes. Whoever holds a record and its proof can still check
-// that it was committed to (deedlog spec/anchoring.md).
+// only that time passes. Whoever is shown what a record is about, with its
+// proof, can still check that it was committed to; whoever is given the whole
+// chain can check that it is the one committed to (deedlog spec/anchoring.md).
+//
+// A leaf stands for one record without being its bytes: a record's line
+// carries its place in the chain, and showing that to someone would tell them
+// how many records came before.
 
 const pow2 = (k) => {
   let s = 1;
@@ -545,24 +554,44 @@ const pow2 = (k) => {
   return s;
 };
 const u32 = (n) => Uint8Array.of(n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255);
+const LEAF = utf8('deedlog-anchor-leaf/v1\n');
+const BLIND = utf8('deedlog-anchor-blind/v1\n');
 const PAD = utf8('deedlog-anchor-pad/v1\n');
 
-/** The leaves of an interval: its records' leaf hashes, filled up to a power of two so that the tree does not tell how many there were. */
-export function anchorLeaves(leaves, pad) {
-  const size = pow2(Math.max(1, leaves.length));
-  const out = [...leaves];
-  for (let j = leaves.length; j < size; j++) out.push(sha256(concat(Uint8Array.of(0), PAD, pad, u32(j))));
-  return out;
+/** The leaf of a record: its blind, the digest of what it is about (its `subject`), and the digest of its line. */
+export const anchorLeaf = (blind, subject, record) => sha256(concat(Uint8Array.of(0), LEAF, blind, subject, record));
+
+/** The blind of the record at position `i` of an interval, from the interval's pad. */
+export const anchorBlind = (pad, i) => sha256(concat(BLIND, pad, u32(i)));
+
+/** The digest of what a record is about, as its line states it. */
+function subjectOf(line) {
+  const d = JSON.parse(line)?.subject?.digest?.sha256;
+  if (typeof d !== 'string' || !/^[0-9a-f]{64}$/.test(d)) throw new Error('the record names no SHA-256 digest of its subject');
+  return unhex(d);
+}
+
+/**
+ * An interval's tree and commitment, from the lines of its records. `nonce`
+ * and `pad` are hexadecimal, fresh for every interval. The tree is filled up
+ * to a power of two, so that it does not tell how many records there were.
+ */
+export function anchor(lines, { chain, epoch, nonce, pad }) {
+  const p = unhex(pad);
+  const size = pow2(Math.max(1, lines.length));
+  const leaves = lines.map((line, i) => anchorLeaf(anchorBlind(p, i), subjectOf(line), sha256(utf8(line))));
+  for (let j = lines.length; j < size; j++) leaves.push(sha256(concat(Uint8Array.of(0), PAD, p, u32(j))));
+  const root = merkleRoot(leaves);
+  return { size, root, commit: anchorCommit({ chain, epoch, size, root, nonce }), leaves };
 }
 
 /** What the public record carries for an interval. `chain` is the name of the private chain. */
 export const anchorCommit = ({ chain, epoch, size, root, nonce }) => sha256hex(`deedlog-anchor/v1\n${chain}\n${epoch}\n${size}\n${b64(root)}\n${nonce}\n`);
 
-/** An interval's tree and commitment, from the leaf hashes of its records. `nonce` and `pad` are 32 hex characters each, fresh for every interval. */
-export function anchor(leaves, { chain, epoch, nonce, pad }) {
-  const all = anchorLeaves(leaves, unhex(pad));
-  const root = merkleRoot(all);
-  return { size: all.length, root, commit: anchorCommit({ chain, epoch, size: all.length, root, nonce }), leaves: all };
+/** What is handed to someone who may see one record: where it sits in its interval, and what it takes to check that. */
+export function recordProof(lines, i, { seq, epoch, nonce, pad }) {
+  const made = anchor(lines, { chain: '', epoch, nonce, pad });
+  return { seq, epoch, size: made.size, index: i, path: inclusionProof(made.leaves, i).map(b64), nonce, blind: hex(anchorBlind(unhex(pad), i)), record: sha256hex(lines[i]) };
 }
 
 /** The root a leaf leads to, given its place in a tree and the proof (RFC 9162, 2.1.3.2). */
@@ -588,11 +617,13 @@ export function rootFromInclusion(leaf, index, size, proof) {
 }
 
 /**
- * The commitment a record leads to, from the record's line and its place in
- * an interval: `{ epoch, size, index, path, nonce }`, the path as base64
- * hashes. The caller compares it with the public record of that interval.
+ * The commitment that what a record is about leads to. `body` is the bytes
+ * the record's subject digest is of, as text; `at` is the proof:
+ * `{ epoch, size, index, path, nonce, blind, record }`. The caller compares
+ * the result with the public record of that interval.
  */
-export function commitOf(line, chain, at) {
-  const root = rootFromInclusion(leafHash(line), at.index, at.size, at.path.map(unb64));
+export function commitOf(body, chain, at) {
+  const leaf = anchorLeaf(unhex(at.blind), sha256(utf8(body)), unhex(at.record));
+  const root = rootFromInclusion(leaf, at.index, at.size, at.path.map(unb64));
   return anchorCommit({ chain, epoch: at.epoch, size: at.size, root, nonce: at.nonce });
 }
