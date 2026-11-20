@@ -1,8 +1,9 @@
 {
   "witness": {
-    "name": "witness.example.org",
-    "operator": "Example Organization",
-    "short_name": "Example"
+    "name": "witness.artsnet.jp",
+    "operator": "Artsnet株式会社",
+    "short_name": "Artsnet",
+    "logo": "/logo.png"
   },
   "quorum": 1,
   "operators": []
