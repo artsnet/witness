@@ -1,5 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  // EUCA's witness at witness.euca.in. To run your own, change name, routes,
+  // WITNESS_NAME and SITE_ORIGIN (see README.md, "Running your own witness").
   "name": "witness-euca-in",
   "main": "src/worker.js",
   "compatibility_date": "2026-10-01",

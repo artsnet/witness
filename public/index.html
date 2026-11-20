@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>記録の確認 | EUCA</title>
-<meta name="description" content="一般社団法人エンドユーザーコンピューティング協会（EUCA）が運営する、第三者の確認サイトです。事業者が残した取り扱いの記録が、あとから書き換えられていないことを確かめられます。">
+<title>記録の確認</title>
+<meta name="description" content="第三者の確認サイトです。事業者が残した取り扱いの記録が、あとから書き換えられていないことを確かめられます。">
 <link rel="icon" href="/favicon.png">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header class="site-header">
   <div class="container">
-    <a class="logo" href="/"><img src="/logo.png" width="900" height="120" alt="EUCA 一般社団法人エンドユーザーコンピューティング協会"></a>
+    <a class="logo" href="/"><img src="/logo.png" width="900" height="120" alt=""></a>
     <span class="site-title">記録の確認</span>
   </div>
 </header>
@@ -26,7 +26,7 @@
     <div class="footer-cols">
       <section>
         <h2>このサイトについて</h2>
-        <p>一般社団法人エンドユーザーコンピューティング協会（EUCA）が運営する、第三者の連署サーバーと確認サイトです。事業者が残した記録に、事業者とは別の立場から連署し、記録があとから書き換えられていないことを確かめられるようにします。記録を公開しない事業者からは、記録から計算した要約だけを預かり、記録そのものは預かりません。</p>
+        <p id="about" data-rest="事業者が残した記録に、事業者とは別の立場から連署し、記録があとから書き換えられていないことを確かめられるようにします。記録を公開しない事業者からは、記録から計算した要約だけを預かり、記録そのものは預かりません。">第三者の連署サーバーと確認サイトです。事業者が残した記録に、事業者とは別の立場から連署し、記録があとから書き換えられていないことを確かめられるようにします。記録を公開しない事業者からは、記録から計算した要約だけを預かり、記録そのものは預かりません。</p>
       </section>
       <section>
         <h2>記録を登録したい組織の方へ</h2>
@@ -34,7 +34,7 @@
         <p class="links"><a href="/registry.json">登録簿</a><a href="/witness.vkey">連署サーバーの検証用の鍵</a><a href="/status.json">連署の状況</a></p>
       </section>
     </div>
-    <p class="copyright">© End User Computing Association</p>
+    <p class="copyright" id="copyright"></p>
   </div>
 </footer>
 <script type="module" src="/app.js"></script>

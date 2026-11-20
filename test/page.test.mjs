@@ -188,6 +188,10 @@ test('anyone sees the state of cosigning, the rules, and the auditor\'s results:
 test('the list of logs, and a log that is not registered', { skip }, async () => {
   const list = await open(fixture.list, 'list');
   assert.equal(await list.$$eval('.logs li', (els) => els.length), 8);
+  // Who runs the witness comes from the registry, not from the page.
+  assert.equal(await list.title(), '記録の確認 | EUCA');
+  assert.match(await list.innerText('#about'), /^一般社団法人エンドユーザーコンピューティング協会（EUCA）が運営する、/);
+  assert.equal(await list.innerText('#copyright'), '© 一般社団法人エンドユーザーコンピューティング協会');
   // Following a link from the list checks that log, without reloading.
   await list.click('.logs a');
   await list.waitForSelector('.banner');

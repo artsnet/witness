@@ -186,7 +186,7 @@ export async function startFixture({ port = 0, now = Date.now() } = {}) {
   // The witness and its registry. An auditor registered later is a new start of the witness over the same store.
   const store = new MemoryStore();
   const registry = () => ({
-    witness: { name: 'witness.euca.in', operator: '一般社団法人エンドユーザーコンピューティング協会' },
+    witness: { name: 'witness.euca.in', operator: '一般社団法人エンドユーザーコンピューティング協会', short_name: 'EUCA' },
     quorum: 1,
     operators: Object.values(ops).map((op) => ({ name: op.name, origin: op.origin, checkpoint_key: op.key.vkey, url: `/logs/${op.id}`, auditors: op.auditors, ...(op.direct ? { kind: 'direct', site: op.site } : {}) })),
   });

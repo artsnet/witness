@@ -1,7 +1,9 @@
-# witness.euca.in
+# witness
 
-A shared witness and a verification page, run by the End User Computing
-Association (EUCA) at <https://witness.euca.in>.
+A witness and a verification page for [deedlog](https://github.com/eucassoc/deedlog)
+chains, that any organization can run for others. The End User Computing
+Association (EUCA) runs one at <https://witness.euca.in>; to run your own, see
+[Running your own witness](#running-your-own-witness).
 
 [日本語](README.ja.md)
 
@@ -26,7 +28,7 @@ Who sees what:
 | A person the records are about | what their own records say, each with a proof that it was committed to | the link they were given |
 | The organization's auditor | every record, in their browser on this site | a passkey registered here and with the organization |
 | Anyone | the rules in force, the state of cosigning, the auditor's signed results | nothing |
-| EUCA | one commitment per interval, and the auditor's results | — |
+| The witness's operator | one commitment per interval, and the auditor's results | — |
 
 The auditor is the organization's own (its internal audit office): somebody
 allowed to see how much was done. What is outside the organization is where
@@ -151,7 +153,8 @@ log is anchored, as described above.
 
 ## What this does not protect
 
-- EUCA could withhold or delete a result. Results are not themselves logged.
+- The witness's operator could withhold or delete a result. Results are not
+  themselves logged.
 - A passkey made here is bound to this site's domain. If the site moves, the
   auditors make new keys.
 - A proof tells its holder two things about the organization: the size of the
@@ -162,20 +165,90 @@ log is anchored, as described above.
 ## The witness's key
 
 If the secret `WITNESS_KEY` is set (a signer key written by
-`dlog keygen -witness -name witness.euca.in -out witness`), the witness signs
+`dlog keygen -witness -name <WITNESS_NAME> -out witness`), the witness signs
 with it. Otherwise it makes a key on first use and keeps it in the Durable
 Object's storage. Either way the verifier key is at `/witness.vkey`.
 A witness is known by its key: set the secret, and keep a copy, before others
 come to rely on it.
 
-## Deploying
+## Running your own witness
 
-Cloudflare Workers, with one SQLite-backed Durable Object (free plan) and
-static assets. In the dashboard: Workers & Pages, Create, Import a repository,
-this repository; the default build and deploy command (`npx wrangler deploy`)
-works. [`wrangler.jsonc`](wrangler.jsonc) attaches the custom domain
-`witness.euca.in` and names the site's address (`SITE_ORIGIN`), which a
-passkey's signature must have been made at.
+A witness is worth something only if it is not the organization whose
+records it cosigns. If you are in a position to be that other party for
+someone, you can run this one.
+
+### Cloudflare Workers (recommended)
+
+This repository is made to run on Cloudflare Workers, and that is the way we
+recommend:
+
+- **One state, one at a time.** Each witness's state lives in one Durable
+  Object, which takes requests one after another. A witness must never
+  cosign two checkpoints that disagree; here that cannot happen by two
+  requests racing, and there is no database to keep consistent.
+- **Nothing to look after.** No server to patch, no certificate to renew, no
+  disk to fill. It keeps running when the person who set it up has moved on,
+  and the free plan is enough. A witness is useful for as long as it lasts.
+- **The key stays inside.** The witness's signing key is made inside the
+  Durable Object, or given as an encrypted secret. It is in no repository
+  and on nobody's laptop.
+- **What runs is what anyone can read.** Deploying from a public repository
+  means anyone can see the code that signs.
+- **Going back is one click.** Each deployment is kept; a bad one is rolled
+  back from the dashboard (Deployments), and the witness's state is not
+  touched.
+
+It needs one SQLite-backed Durable Object and static assets, both on the free
+plan.
+
+### Steps
+
+1. Fork this repository (or copy it into your own).
+2. Change three files:
+   - [`wrangler.jsonc`](wrangler.jsonc): `name` (the Worker), `routes` (your
+     host name), `WITNESS_NAME` (the witness's name, usually the same host
+     name) and `SITE_ORIGIN`.
+   - [`public/registry.json`](public/registry.json): `witness` (`name`, as
+     `WITNESS_NAME`; `operator`, your organization's name; `short_name`, how
+     the page refers to you; optional `copyright` and `logo`, or
+     `"logo": null` for none) and `operators`, the logs you cosign (start
+     with none).
+   - `public/logo.png` and `public/favicon.png`.
+3. In the Cloudflare dashboard: Workers & Pages, Create, Import a repository,
+   your repository. The default deploy command (`npx wrangler deploy`) works.
+   The host name is attached if its zone is in the same account.
+4. Decide about the key (below) before anyone relies on the witness. Then
+   publish `https://<host>/witness.vkey`.
+
+`WITNESS_NAME` and the key are what the witness is known by: they are in
+every cosignature it makes. Choose a name you will keep, and do not change it
+afterwards.
+
+### The key
+
+By default the witness makes its key on first use and keeps it in the
+Durable Object. That is the simplest, and the key never leaves Cloudflare;
+but there is no copy, and if the Worker or its storage is deleted the
+witness is gone and has to be registered again under a new key. For a
+witness others will rely on for years, make the key yourself, keep the
+signer key offline, and give it to the Worker as the secret `WITNESS_KEY`
+(see [The witness's key](#the-witnesss-key)).
+
+### Updating
+
+Your witness runs what your repository holds. A change here reaches it only
+when you take it into your fork: nothing upstream can stop your witness. Take
+releases (tags) rather than whatever is on `main`, and read what changed.
+
+To guard your own `main` as well:
+
+- Set the Worker's production branch (Settings, Build) to a branch you
+  advance only after CI passes, such as `release`, and keep `main` for work.
+  The CI in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the
+  witness, the page in a browser, deedlog's own tool against it, and a dry
+  run of the deployment.
+- Protect that branch, so that a change needs a pull request and a green CI.
+- If a bad version is deployed anyway, roll back from the dashboard.
 
 ## Development
 

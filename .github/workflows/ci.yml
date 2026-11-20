@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main, release]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      # dlog, so the witness is also checked against deedlog's own tool
+      - run: go install github.com/eucassoc/deedlog/cmd/dlog@v0.1.0
+      - run: npm ci
+      # the page tests run in a real browser
+      - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      - run: npm test
+        env:
+          DLOG: dlog
+      - name: the Worker bundles
+        run: npx wrangler deploy --dry-run --outdir /tmp/bundle

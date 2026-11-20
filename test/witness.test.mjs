@@ -18,7 +18,7 @@ const leaves = (lines) => lines.map((l) => t.leafHash(l));
 async function setup(env = {}) {
   const op = await t.generateKey(origin);
   const store = new MemoryStore();
-  const registry = { operators: [{ origin, checkpoint_key: op.vkey }, { origin: 'bad.example/log', checkpoint_key: 'nonsense' }] };
+  const registry = { witness: { name: 'witness.example' }, operators: [{ origin, checkpoint_key: op.vkey }, { origin: 'bad.example/log', checkpoint_key: 'nonsense' }] };
   const make = () => new Witness({ store, env, registry, now: () => new Date('2026-11-18T01:00:00Z') });
   const witness = make();
   const call = (w, method, path, body) => w.handle(new Request('https://witness.example' + path, { method, body }));
@@ -35,7 +35,7 @@ test('cosigns a log in its registry, and keeps what it cosigned', async () => {
   assert.equal(vkeyRes.headers.get('access-control-allow-origin'), '*');
   const vkey = (await vkeyRes.text()).trim();
   const w = t.parseVerifier(vkey);
-  assert.equal(w.name, 'witness.euca.in');
+  assert.equal(w.name, 'witness.example');
   assert.equal(w.typ, t.SIG_COSIGNATURE);
 
   const lines = grow([], 4);
@@ -118,7 +118,7 @@ async function site() {
   const store = new MemoryStore();
   const op = await t.generateKey(origin);
   const auditor = await passkey({ origin: SITE });
-  const state = { registry: { operators: [{ origin, checkpoint_key: op.vkey, auditors: [auditor.entry] }] } };
+  const state = { registry: { witness: { name: 'witness.example' }, operators: [{ origin, checkpoint_key: op.vkey, auditors: [auditor.entry] }] } };
   const make = () => new Witness({ store, registry: state.registry, now: () => new Date(NOW) });
   const call = (w, method, path, body) => w.handle(new Request(SITE + path, { method, body }));
   const statement = (over = {}) =>

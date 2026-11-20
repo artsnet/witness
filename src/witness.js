@@ -60,6 +60,7 @@ export class Witness {
    * @param {{ store: any, env?: { WITNESS_KEY?: string, WITNESS_NAME?: string, SITE_ORIGIN?: string }, now?: () => Date, registry: { operators?: { origin: string, checkpoint_key: string, auditors?: { name: string, id: string, key: string, alg?: number }[] }[] } }} opts
    */
   constructor({ store, env = {}, now = () => new Date(), registry }) {
+    this.witnessName = registry?.witness?.name;
     this.store = store;
     this.env = env;
     this.now = now;
@@ -79,6 +80,13 @@ export class Witness {
     this.lock = Promise.resolve();
   }
 
+  /** The witness's name, in its key and its cosignature lines: WITNESS_NAME, or the registry's. */
+  name() {
+    const name = this.env.WITNESS_NAME || this.witnessName;
+    if (!name) throw new Error('the witness has no name: set WITNESS_NAME in wrangler.jsonc (its host name, e.g. witness.example.org)');
+    return name;
+  }
+
   /** The witness's key: the secret if one is set, or else one made on first use and kept in the store. */
   signer() {
     this.signing ??= (async () => {
@@ -86,7 +94,7 @@ export class Witness {
       if (!skey) {
         skey = await this.store.get('key');
         if (!skey) {
-          skey = (await generateKey(this.env.WITNESS_NAME || 'witness.euca.in', SIG_COSIGNATURE)).skey;
+          skey = (await generateKey(this.name(), SIG_COSIGNATURE)).skey;
           await this.store.put('key', skey);
         }
       }
