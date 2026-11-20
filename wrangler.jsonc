@@ -1,8 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Change name, routes, WITNESS_NAME and SITE_ORIGIN to your own before the
-  // first deploy (see README.md, "Running your own witness").
-  "name": "witness",
+  // artsnet's witness at witness.artsnet.jp. The code comes from eucassoc/witness
+  // (this repository's upstream); this repository holds artsnet's settings.
+  "name": "witness-artsnet-jp",
   "main": "src/worker.js",
   "compatibility_date": "2026-10-01",
   "assets": {
@@ -17,13 +17,13 @@
     "bindings": [{ "name": "WITNESS", "class_name": "WitnessState" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WitnessState"] }],
-  "routes": [{ "pattern": "witness.example.org", "custom_domain": true }],
+  "routes": [{ "pattern": "witness.artsnet.jp", "custom_domain": true }],
   "vars": {
     // The name in the witness's key and in its cosignature lines.
-    "WITNESS_NAME": "witness.example.org",
+    "WITNESS_NAME": "witness.artsnet.jp",
     // Where the site is: what an auditor's passkey signature names. Set it
     // when the address the Worker sees is not the one in the browser's bar.
-    "SITE_ORIGIN": "https://witness.example.org"
+    "SITE_ORIGIN": "https://witness.artsnet.jp"
   },
   "observability": { "enabled": true }
 }
