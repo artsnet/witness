@@ -222,3 +222,5 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .latest li { grid-template-columns: 1fr auto; }
   .latest li span:first-child { grid-column: 1 / -1; color: var(--soft); font-size: 13px; }
 }
+
+[hidden] { display: none !important; }

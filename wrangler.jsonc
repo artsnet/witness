@@ -1,8 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // EUCA's witness at witness.euca.in. To run your own, change name, routes,
-  // WITNESS_NAME and SITE_ORIGIN (see README.md, "Running your own witness").
-  "name": "witness-euca-in",
+  // Change name, routes, WITNESS_NAME and SITE_ORIGIN to your own before the
+  // first deploy (see README.md, "Running your own witness").
+  "name": "witness",
   "main": "src/worker.js",
   "compatibility_date": "2026-10-01",
   "assets": {
@@ -17,13 +17,13 @@
     "bindings": [{ "name": "WITNESS", "class_name": "WitnessState" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WitnessState"] }],
-  "routes": [{ "pattern": "witness.euca.in", "custom_domain": true }],
+  "routes": [{ "pattern": "witness.example.org", "custom_domain": true }],
   "vars": {
     // The name in the witness's key and in its cosignature lines.
-    "WITNESS_NAME": "witness.euca.in",
+    "WITNESS_NAME": "witness.example.org",
     // Where the site is: what an auditor's passkey signature names. Set it
     // when the address the Worker sees is not the one in the browser's bar.
-    "SITE_ORIGIN": "https://witness.euca.in"
+    "SITE_ORIGIN": "https://witness.example.org"
   },
   "observability": { "enabled": true }
 }

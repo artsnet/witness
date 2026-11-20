@@ -1,9 +1,9 @@
 {
   "witness": {
-    "name": "witness.euca.in",
-    "operator": "一般社団法人エンドユーザーコンピューティング協会",
-    "short_name": "EUCA",
-    "copyright": "End User Computing Association",
+    "name": "witness.example.org",
+    "operator": "Example Organization",
+    "short_name": "Example",
+    "copyright": "Example Organization",
     "logo": "/logo.png"
   },
   "quorum": 1,

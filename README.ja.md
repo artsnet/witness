@@ -2,7 +2,8 @@
 
 [deedlog](https://github.com/eucassoc/deedlog) のチェーンのための、連署サーバーと確認サイトです。
 どの組織でも、ほかの組織のために立てられます。一般社団法人エンドユーザーコンピューティング協会
-（EUCA）は <https://witness.euca.in> で運営しています。自分で立てるときは
+（EUCA）は <https://witness.euca.in> で運営しています（設定は
+[eucassoc/witness.euca.in](https://github.com/eucassoc/witness.euca.in)）。自分で立てるときは
 [連署サーバーを立てる](#連署サーバーを立てる) を見てください。
 
 [English](README.md)
@@ -177,14 +178,16 @@ SQLite を使う Durable Object を1つと、静的ファイルを使います�
 
 ### 手順
 
-1. このリポジトリをフォークする（または自分のリポジトリにコピーする）。
+1. このリポジトリから自分のリポジトリを作る。フォークするか、同じ持ち主の下に置くときは
+   空のリポジトリを作ってこのリポジトリを push し、このリポジトリを `upstream` として残す。
+   自分のリポジトリには設定を、このリポジトリにはコードを置く形です。
 2. 三つのファイルを変える。
    - [`wrangler.jsonc`](wrangler.jsonc): `name`（Worker の名前）、`routes`（自分のホスト名）、
      `WITNESS_NAME`（連署サーバーの名前。ふつうはホスト名と同じ）、`SITE_ORIGIN`。
    - [`public/registry.json`](public/registry.json): `witness`（`name` は `WITNESS_NAME` と同じ、
-     `operator` は組織の名前、`short_name` は画面での呼び名、必要なら `copyright` と `logo`。
-     ロゴを出さないときは `"logo": null`）と、連署する記録の `operators`（最初は空で構いません）。
-   - `public/logo.png` と `public/favicon.png`。
+     `operator` は組織の名前、`short_name` は画面での呼び名、必要なら `copyright`、ロゴを
+     出すときは `"logo": "/logo.png"`）と、連署する記録の `operators`（最初は空で構いません）。
+   - ロゴとアイコン: `public/logo.png`（高さ 46 px で表示）と `public/favicon.png`。
 3. Cloudflare のダッシュボードで Workers & Pages、Create、Import a repository から自分の
    リポジトリを選ぶ。既定のデプロイコマンド（`npx wrangler deploy`）で動きます。ホスト名の
    ゾーンが同じアカウントにあれば、ホスト名も割り当てられます。
@@ -204,9 +207,15 @@ SQLite を使う Durable Object を1つと、静的ファイルを使います�
 
 ### 更新
 
-連署サーバーで動くのは、自分のリポジトリにあるコードです。このリポジトリの変更は、フォークに
-取り込んだときにだけ届きます。上流で何が起きても、自分の連署サーバーが止まることはありません。
-`main` の最新ではなくリリース（タグ）を、変更内容を読んでから取り込んでください。
+連署サーバーで動くのは、自分のリポジトリにあるコードです。このリポジトリの変更は、自分の
+リポジトリに取り込んだときにだけ届きます。上流で何が起きても、自分の連署サーバーが止まることは
+ありません。`main` の最新ではなくリリース（タグ）を、変更内容を読んでから取り込んでください。
+
+```sh
+git fetch upstream --tags
+git log --oneline main..v0.2.0     # 何が変わったか
+git merge v0.2.0                   # 設定のファイルは、このリポジトリでは項目を足す以外に変えません
+```
 
 自分の `main` も守るには:
 

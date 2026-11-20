@@ -866,12 +866,10 @@ function brand(w = {}) {
   const full = w.operator && w.short_name && w.operator !== w.short_name ? `${w.operator}（${w.short_name}）` : w.operator || w.short_name;
   document.title = `記録の確認 | ${w.short_name || w.operator || w.name || '連署サーバー'}`;
   const logo = document.querySelector('.site-header .logo img');
-  if (logo) {
-    if (w.logo === null) logo.remove();
-    else {
-      if (w.logo) logo.src = w.logo;
-      logo.alt = full || '';
-    }
+  if (logo && w.logo) {
+    logo.src = w.logo;
+    logo.alt = full || '';
+    logo.hidden = false;
   }
   const about = document.getElementById('about');
   if (about && full) about.textContent = `${full}が運営する、第三者の連署サーバーと確認サイトです。` + about.dataset.rest;

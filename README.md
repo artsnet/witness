@@ -2,8 +2,9 @@
 
 A witness and a verification page for [deedlog](https://github.com/eucassoc/deedlog)
 chains, that any organization can run for others. The End User Computing
-Association (EUCA) runs one at <https://witness.euca.in>; to run your own, see
-[Running your own witness](#running-your-own-witness).
+Association (EUCA) runs one at <https://witness.euca.in> (its settings are in
+[eucassoc/witness.euca.in](https://github.com/eucassoc/witness.euca.in)); to
+run your own, see [Running your own witness](#running-your-own-witness).
 
 [日本語](README.ja.md)
 
@@ -203,17 +204,20 @@ plan.
 
 ### Steps
 
-1. Fork this repository (or copy it into your own).
+1. Make a repository of your own from this one: fork it, or, if it would be
+   under the same owner, create an empty repository and push this one to it,
+   keeping this one as the remote `upstream`. Your repository holds your
+   settings; this one holds the code.
 2. Change three files:
    - [`wrangler.jsonc`](wrangler.jsonc): `name` (the Worker), `routes` (your
      host name), `WITNESS_NAME` (the witness's name, usually the same host
      name) and `SITE_ORIGIN`.
    - [`public/registry.json`](public/registry.json): `witness` (`name`, as
      `WITNESS_NAME`; `operator`, your organization's name; `short_name`, how
-     the page refers to you; optional `copyright` and `logo`, or
-     `"logo": null` for none) and `operators`, the logs you cosign (start
-     with none).
-   - `public/logo.png` and `public/favicon.png`.
+     the page refers to you; optional `copyright`;      `"logo": "/logo.png"` to show one) and `operators`, the logs you
+     cosign (start with none).
+   - Your logo and icon: `public/logo.png` (shown 46 px high) and
+     `public/favicon.png`.
 3. In the Cloudflare dashboard: Workers & Pages, Create, Import a repository,
    your repository. The default deploy command (`npx wrangler deploy`) works.
    The host name is attached if its zone is in the same account.
@@ -237,8 +241,14 @@ signer key offline, and give it to the Worker as the secret `WITNESS_KEY`
 ### Updating
 
 Your witness runs what your repository holds. A change here reaches it only
-when you take it into your fork: nothing upstream can stop your witness. Take
-releases (tags) rather than whatever is on `main`, and read what changed.
+when you take it into yours: nothing upstream can stop your witness. Take
+releases (tags) rather than whatever is on `main`, and read what changed:
+
+```sh
+git fetch upstream --tags
+git log --oneline main..v0.2.0     # what changed
+git merge v0.2.0                   # your settings are in files this repository does not change, except to add to them
+```
 
 To guard your own `main` as well:
 
