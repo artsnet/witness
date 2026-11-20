@@ -6,5 +6,13 @@
     "logo": "/logo.png"
   },
   "quorum": 1,
-  "operators": []
+  "operators": [
+    {
+      "name": "EUCA お問い合わせの取り扱い記録",
+      "origin": "cucon.euca.in/dlm",
+      "checkpoint_key": "cucon.euca.in/dlm+d7b8aa52+AeehG9O+kVKyLMcNsIGnAh8KuQ13Gw7vasMPjGk+nyjx",
+      "url": "https://cucon.euca.in/log",
+      "auditors": []
+    }
+  ]
 }
