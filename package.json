@@ -11,7 +11,7 @@
   "devDependencies": {
     "deedlog": "^0.2.0",
     "esbuild": "^0.28.2",
-    "tsutome": "^0.1.1",
+    "tsutome": "^0.2.0",
     "wrangler": "^4.164.0"
   }
 }
